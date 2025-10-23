@@ -1,0 +1,58 @@
+AITradeAgent/
+├── backend/                           # Backend application (Python + FastAPI)
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                    # FastAPI application entry point
+│   │   ├── api/                       # API routes and endpoints
+│   │   │   ├── __init__.py
+│   │   │   ├── routes.py              # REST API routes
+│   │   │   └── websocket.py           # WebSocket endpoints
+│   │   ├── core/                      # Core configuration
+│   │   │   ├── __init__.py
+│   │   │   └── config.py              # Application settings
+│   │   ├── models/                    # Database models
+│   │   │   ├── __init__.py
+│   │   │   └── trade.py               # Trade model example
+│   │   └── services/                  # Business logic
+│   │       ├── __init__.py
+│   │       └── trade_service.py       # Trade service example
+│   ├── tests/                         # Test files
+│   │   ├── __init__.py
+│   │   └── test_api.py                # API tests
+│   ├── Dockerfile                     # Backend Docker configuration
+│   └── requirements.txt               # Python dependencies
+│
+├── frontend/                          # Frontend application (React + Vite)
+│   ├── public/                        # Static assets
+│   ├── src/
+│   │   ├── components/                # Reusable React components
+│   │   │   └── Welcome.jsx
+│   │   ├── pages/                     # Page components
+│   │   │   └── Dashboard.jsx
+│   │   ├── services/                  # API service layer
+│   │   │   └── api.js                 # API client
+│   │   ├── utils/                     # Utility functions
+│   │   │   └── websocket.js           # WebSocket client
+│   │   ├── App.jsx                    # Main App component
+│   │   ├── App.css                    # App styles
+│   │   ├── main.jsx                   # React entry point
+│   │   └── index.css                  # Global styles
+│   ├── index.html                     # HTML template
+│   ├── vite.config.js                 # Vite configuration
+│   ├── package.json                   # Node.js dependencies
+│   └── Dockerfile                     # Frontend Docker configuration
+│
+├── .env.example                       # Environment variables template
+├── .gitignore                         # Git ignore rules
+├── CONTRIBUTING.md                    # Contribution guidelines
+├── LICENSE                            # MIT License
+├── README.md                          # Project documentation
+├── docker-compose.yml                 # Docker Compose configuration
+├── start-backend.sh                   # Backend startup script
+└── start-frontend.sh                  # Frontend startup script
+
+Technology Stack:
+- Backend: Python 3.11+, FastAPI, SQLAlchemy, Pydantic, Uvicorn, WebSockets
+- Frontend: React 18, Vite, Axios, Recharts
+- Database: SQLAlchemy (configurable)
+- Containerization: Docker, Docker Compose
