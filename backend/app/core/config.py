@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
     
+    # OKX API Configuration
+    OKX_API_KEY: Optional[str] = None
+    OKX_SECRET_KEY: Optional[str] = None
+    OKX_PASSPHRASE: Optional[str] = None
+    OKX_API_BASE_URL: str = "https://www.okx.com"
+    OKX_WS_PUBLIC_URL: str = "wss://ws.okx.com:8443/ws/v5/public"
+    OKX_WS_PRIVATE_URL: str = "wss://ws.okx.com:8443/ws/v5/private"
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
