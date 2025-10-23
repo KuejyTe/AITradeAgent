@@ -12,7 +12,10 @@ AITradeAgent/
 │   │   │   └── config.py              # Application settings
 │   │   ├── models/                    # Database models
 │   │   │   ├── __init__.py
-│   │   │   └── trade.py               # Trade model example
+│   │   │   ├── market.py              # Market data models
+│   │   │   ├── trading.py             # Orders and trades
+│   │   │   ├── account.py             # Account and position models
+│   │   │   └── strategy.py            # Strategy and signals
 │   │   └── services/                  # Business logic
 │   │       ├── __init__.py
 │   │       └── trade_service.py       # Trade service example
