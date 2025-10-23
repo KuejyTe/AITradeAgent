@@ -1,6 +1,10 @@
 from fastapi import APIRouter
+from app.api.strategies import router as strategies_router
 
 router = APIRouter()
+
+# Include sub-routers
+router.include_router(strategies_router)
 
 
 @router.get("/health")

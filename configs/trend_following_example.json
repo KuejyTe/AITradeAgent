@@ -1,0 +1,18 @@
+{
+  "strategy_type": "trend_following",
+  "parameters": {
+    "atr_period": 14,
+    "breakout_multiplier": 2.0,
+    "stop_loss_multiplier": 2.0,
+    "take_profit_multiplier": 3.0,
+    "instrument": "BTC-USDT"
+  },
+  "risk": {
+    "max_position_size": 0.5,
+    "max_loss_per_trade": 0.02,
+    "stop_loss_pct": 0.03,
+    "max_daily_loss": 0.05,
+    "max_leverage": 1.5,
+    "max_positions": 3
+  }
+}
