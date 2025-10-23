@@ -28,6 +28,18 @@ class Settings(BaseSettings):
     OKX_WS_PUBLIC_URL: str = "wss://ws.okx.com:8443/ws/v5/public"
     OKX_WS_PRIVATE_URL: str = "wss://ws.okx.com:8443/ws/v5/private"
     
+    # Redis Configuration
+    REDIS_URL: str = "redis://localhost:6379"
+    
+    # Data Collector Configuration
+    DATA_COLLECTOR_CONFIG: dict = {
+        "instruments": ["BTC-USDT", "ETH-USDT", "BNB-USDT"],
+        "candle_bars": ["1m", "5m", "15m", "1H", "1D"],
+        "enable_order_book": True,
+        "cache_enabled": True,
+        "retention_days": 90
+    }
+    
     class Config:
         env_file = ".env"
         case_sensitive = True
