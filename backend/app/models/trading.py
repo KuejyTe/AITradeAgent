@@ -1,28 +1,35 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, Enum as SQLEnum, Text, Numeric, Boolean
-from sqlalchemy.ext.declarative import declarative_base
+"""
+交易相关数据模型
+"""
+
+from sqlalchemy import Column, String, Numeric, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from datetime import datetime
-from decimal import Decimal
+import uuid
 import enum
 
-Base = declarative_base()
+from .base import Base
 
 
 class OrderSide(str, enum.Enum):
+    """订单方向"""
     BUY = "buy"
     SELL = "sell"
 
 
 class OrderType(str, enum.Enum):
+    """订单类型"""
     MARKET = "market"
     LIMIT = "limit"
-    POST_ONLY = "post_only"
-    FOK = "fok"
-    IOC = "ioc"
+    STOP = "stop"
+    STOP_LIMIT = "stop_limit"
 
 
 class OrderStatus(str, enum.Enum):
+    """订单状态"""
     PENDING = "pending"
-    LIVE = "live"
+    OPEN = "open"
     PARTIALLY_FILLED = "partially_filled"
     FILLED = "filled"
     CANCELLED = "cancelled"
@@ -30,116 +37,54 @@ class OrderStatus(str, enum.Enum):
     EXPIRED = "expired"
 
 
-class PositionSide(str, enum.Enum):
-    LONG = "long"
-    SHORT = "short"
-    NET = "net"
-
-
 class Order(Base):
+    """订单模型"""
     __tablename__ = "orders"
 
-    id = Column(Integer, primary_key=True, index=True)
-    client_order_id = Column(String, unique=True, index=True, nullable=True)
-    exchange_order_id = Column(String, unique=True, index=True, nullable=True)
-    instrument_id = Column(String, index=True, nullable=False)
-    side = Column(SQLEnum(OrderSide), nullable=False)
-    order_type = Column(SQLEnum(OrderType), nullable=False)
-    price = Column(Numeric(20, 8), nullable=True)
-    size = Column(Numeric(20, 8), nullable=False)
-    filled_size = Column(Numeric(20, 8), default=Decimal("0"))
-    average_price = Column(Numeric(20, 8), nullable=True)
-    status = Column(SQLEnum(OrderStatus), default=OrderStatus.PENDING, index=True)
-    trade_mode = Column(String, nullable=True)  # cash, cross, isolated
-    position_side = Column(SQLEnum(PositionSide), nullable=True)
-    reduce_only = Column(Boolean, default=False)
-    
-    # Metadata
-    strategy_id = Column(String, nullable=True, index=True)
-    signal_id = Column(String, nullable=True)
-    metadata = Column(Text, nullable=True)  # JSON string
-    
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    filled_at = Column(DateTime, nullable=True)
-    cancelled_at = Column(DateTime, nullable=True)
-    
-    # Error information
-    error_code = Column(String, nullable=True)
-    error_message = Column(Text, nullable=True)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    order_id = Column(String(100), unique=True, nullable=False, index=True, comment="交易所订单ID")
+    instrument_id = Column(String(50), nullable=False, index=True, comment="交易对")
+    side = Column(SQLEnum(OrderSide), nullable=False, comment="买卖方向")
+    order_type = Column(SQLEnum(OrderType), nullable=False, comment="订单类型")
+    price = Column(Numeric(20, 8), comment="价格")
+    size = Column(Numeric(20, 8), nullable=False, comment="数量")
+    filled_size = Column(Numeric(20, 8), default=0, comment="已成交数量")
+    status = Column(SQLEnum(OrderStatus), nullable=False, default=OrderStatus.PENDING, comment="订单状态")
+    strategy_id = Column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True, comment="关联策略ID")
+    client_order_id = Column(String(100), comment="客户端订单ID")
+    fee = Column(Numeric(20, 8), default=0, comment="手续费")
+    fee_currency = Column(String(20), comment="手续费币种")
+    error_message = Column(String(500), comment="错误信息")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True, comment="创建时间")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, comment="更新时间")
+
+    # 关系
+    trades = relationship("Trade", back_populates="order", cascade="all, delete-orphan")
+    strategy = relationship("Strategy", back_populates="orders")
+
+    def __repr__(self):
+        return f"<Order(id={self.id}, instrument_id={self.instrument_id}, side={self.side}, status={self.status})>"
 
 
 class Trade(Base):
+    """成交记录模型"""
     __tablename__ = "trades"
 
-    id = Column(Integer, primary_key=True, index=True)
-    trade_id = Column(String, unique=True, index=True, nullable=False)
-    order_id = Column(Integer, index=True, nullable=False)  # Reference to Order.id
-    exchange_order_id = Column(String, nullable=True)
-    instrument_id = Column(String, index=True, nullable=False)
-    side = Column(SQLEnum(OrderSide), nullable=False)
-    price = Column(Numeric(20, 8), nullable=False)
-    size = Column(Numeric(20, 8), nullable=False)
-    fee = Column(Numeric(20, 8), default=Decimal("0"))
-    fee_currency = Column(String, nullable=True)
-    
-    # Additional info
-    liquidity = Column(String, nullable=True)  # maker, taker
-    trade_mode = Column(String, nullable=True)
-    position_side = Column(SQLEnum(PositionSide), nullable=True)
-    
-    # Metadata
-    strategy_id = Column(String, nullable=True, index=True)
-    metadata = Column(Text, nullable=True)  # JSON string
-    
-    # Timestamps
-    executed_at = Column(DateTime, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    trade_id = Column(String(100), unique=True, nullable=False, index=True, comment="交易所成交ID")
+    order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False, comment="关联订单ID")
+    instrument_id = Column(String(50), nullable=False, index=True, comment="交易对")
+    side = Column(SQLEnum(OrderSide), nullable=False, comment="买卖方向")
+    price = Column(Numeric(20, 8), nullable=False, comment="成交价格")
+    size = Column(Numeric(20, 8), nullable=False, comment="成交数量")
+    fee = Column(Numeric(20, 8), default=0, comment="手续费")
+    fee_currency = Column(String(20), comment="手续费币种")
+    role = Column(String(20), comment="maker/taker")
+    timestamp = Column(DateTime, nullable=False, index=True, comment="成交时间")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, comment="记录创建时间")
 
+    # 关系
+    order = relationship("Order", back_populates="trades")
 
-class Position(Base):
-    __tablename__ = "positions"
-
-    id = Column(Integer, primary_key=True, index=True)
-    instrument_id = Column(String, unique=True, index=True, nullable=False)
-    side = Column(SQLEnum(PositionSide), nullable=False)
-    size = Column(Numeric(20, 8), nullable=False)
-    entry_price = Column(Numeric(20, 8), nullable=False)
-    current_price = Column(Numeric(20, 8), nullable=False)
-    average_price = Column(Numeric(20, 8), nullable=False)
-    
-    # PnL
-    unrealized_pnl = Column(Numeric(20, 8), default=Decimal("0"))
-    realized_pnl = Column(Numeric(20, 8), default=Decimal("0"))
-    
-    # Margin
-    margin = Column(Numeric(20, 8), nullable=True)
-    leverage = Column(Numeric(10, 2), nullable=True)
-    margin_mode = Column(String, nullable=True)  # cross, isolated
-    
-    # Metadata
-    strategy_id = Column(String, nullable=True, index=True)
-    metadata = Column(Text, nullable=True)  # JSON string
-    
-    # Timestamps
-    opened_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    closed_at = Column(DateTime, nullable=True)
-
-
-class ExecutionEvent(Base):
-    __tablename__ = "execution_events"
-
-    id = Column(Integer, primary_key=True, index=True)
-    event_type = Column(String, nullable=False, index=True)  # order_created, order_filled, order_cancelled, position_opened, position_closed
-    order_id = Column(Integer, nullable=True, index=True)
-    trade_id = Column(Integer, nullable=True, index=True)
-    position_id = Column(Integer, nullable=True, index=True)
-    instrument_id = Column(String, nullable=False, index=True)
-    
-    # Event data
-    event_data = Column(Text, nullable=True)  # JSON string
-    
-    # Timestamps
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    def __repr__(self):
+        return f"<Trade(id={self.id}, instrument_id={self.instrument_id}, price={self.price}, size={self.size})>"

@@ -131,6 +131,25 @@ The backend API will be available at:
 - Interactive API docs: http://localhost:8000/docs
 - Alternative API docs: http://localhost:8000/redoc
 
+#### Database & Migrations
+
+The backend uses SQLAlchemy for ORM mapping and Alembic for schema migrations. After configuring your `DATABASE_URL` in `.env`, apply the latest migrations:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+When you update the models, generate a new migration and apply it:
+
+```bash
+cd backend
+alembic revision --autogenerate -m "describe your change"
+alembic upgrade head
+```
+
+Alembic is configured to work with PostgreSQL in production and SQLite during local development, using batch mode for SQLite compatibility.
+
 #### Frontend Setup
 
 1. Navigate to the frontend directory:

@@ -9,7 +9,7 @@
 - [x] Core configuration in `backend/app/core/config.py`
 - [x] API routes in `backend/app/api/routes.py`
 - [x] WebSocket support in `backend/app/api/websocket.py`
-- [x] Sample model in `backend/app/models/trade.py`
+- [x] Database models in `backend/app/models/`
 - [x] Sample service in `backend/app/services/trade_service.py`
 - [x] Tests in `backend/tests/test_api.py`
 - [x] Dockerfile for containerization

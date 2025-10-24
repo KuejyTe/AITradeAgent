@@ -1,48 +1,45 @@
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings, Field
 from typing import Optional
 
-
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "AITradeAgent"
-    VERSION: str = "1.0.0"
-    API_V1_STR: str = "/api/v1"
+    # 应用配置
+    app_name: str = "AITradeAgent"
+    environment: str = Field("development", env="ENVIRONMENT")
+    debug: bool = Field(False, env="DEBUG")
     
-    # CORS
-    BACKEND_CORS_ORIGINS: list = ["http://localhost:5173", "http://localhost:3000"]
+    # 欧易API
+    okx_api_key: str = Field("", env="OKX_API_KEY")
+    okx_secret_key: str = Field("", env="OKX_SECRET_KEY")
+    okx_passphrase: str = Field("", env="OKX_PASSPHRASE")
+    okx_api_base_url: str = Field("https://www.okx.com", env="OKX_API_BASE_URL")
+    okx_ws_public_url: str = Field("wss://ws.okx.com:8443/ws/v5/public", env="OKX_WS_PUBLIC_URL")
+    okx_ws_private_url: str = Field("wss://ws.okx.com:8443/ws/v5/private", env="OKX_WS_PRIVATE_URL")
     
-    # Database
-    DATABASE_URL: Optional[str] = None
+    # 数据库配置
+    database_url: str = Field(..., env="DATABASE_URL")
+    db_pool_size: int = Field(10, env="DB_POOL_SIZE")
+    db_max_overflow: int = Field(20, env="DB_MAX_OVERFLOW")
+    db_echo: bool = Field(False, env="DB_ECHO")
     
-    # WebSocket
-    WS_MESSAGE_QUEUE_SIZE: int = 100
+    # Redis配置（可选）
+    redis_url: Optional[str] = Field(None, env="REDIS_URL")
     
-    # Environment
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
+    # 安全配置
+    secret_key: str = Field(..., env="SECRET_KEY")
+    jwt_expiration_hours: int = Field(24, env="JWT_EXPIRATION_HOURS")
     
-    # OKX API Configuration
-    OKX_API_KEY: Optional[str] = None
-    OKX_SECRET_KEY: Optional[str] = None
-    OKX_PASSPHRASE: Optional[str] = None
-    OKX_API_BASE_URL: str = "https://www.okx.com"
-    OKX_WS_PUBLIC_URL: str = "wss://ws.okx.com:8443/ws/v5/public"
-    OKX_WS_PRIVATE_URL: str = "wss://ws.okx.com:8443/ws/v5/private"
+    # 日志配置
+    log_level: str = Field("INFO", env="LOG_LEVEL")
+    log_file: str = Field("logs/app.log", env="LOG_FILE")
     
-    # Redis Configuration
-    REDIS_URL: str = "redis://localhost:6379"
-    
-    # Data Collector Configuration
-    DATA_COLLECTOR_CONFIG: dict = {
-        "instruments": ["BTC-USDT", "ETH-USDT", "BNB-USDT"],
-        "candle_bars": ["1m", "5m", "15m", "1H", "1D"],
-        "enable_order_book": True,
-        "cache_enabled": True,
-        "retention_days": 90
-    }
-    
+    # 交易配置
+    default_trade_amount: float = Field(100, env="DEFAULT_TRADE_AMOUNT")
+    max_position_size: float = Field(10000, env="MAX_POSITION_SIZE")
+    risk_percentage: float = Field(0.02, env="RISK_PERCENTAGE")
+
     class Config:
-        env_file = ".env"
-        case_sensitive = True
-
-
-settings = Settings()
+    env_file = ".env"
+    case_sensitive = False
+    
+    全局配置实例
+    settings = Settings()
