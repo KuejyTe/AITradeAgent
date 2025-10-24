@@ -1,6 +1,6 @@
-import React from 'react'
+import type { FC } from 'react'
 
-const Welcome = () => {
+const Welcome: FC = () => {
   return (
     <div className="welcome-container">
       <h2>Welcome to AITradeAgent</h2>
