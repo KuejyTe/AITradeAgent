@@ -1,4 +1,3 @@
-```tsx
 import React, { useState, useEffect } from 'react';
 import { Card, Form, Input, Button, Switch, Tabs, message, InputNumber } from 'antd';
 import { SafetyOutlined, ApiOutlined, SettingOutlined, BellOutlined } from '@ant-design/icons';
