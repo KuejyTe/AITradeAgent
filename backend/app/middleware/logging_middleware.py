@@ -1,59 +1,71 @@
-"""
-请求日志中间件
-"""
+"""Middleware for capturing structured request and response logs."""
+
+from __future__ import annotations
 
 import time
+
 from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from ..core.logging import api_logger
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
+
+from app.core.config import settings
+from app.core.logging import api_logger
+from app.monitoring.metrics import api_request_duration, api_requests_total
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """请求日志中间件"""
-    
-    async def dispatch(self, request: Request, call_next):
-        """处理请求并记录日志"""
-        # 记录请求开始
-        start_time = time.time()
-        request_id = request.headers.get("X-Request-ID", "unknown")
-        
-        # 记录请求信息
+    """Record inbound API requests and their responses."""
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        start_time = time.perf_counter()
+        method = request.method
+        path = request.url.path
+        client_ip = request.client.host if request.client else "unknown"
+
         api_logger.info(
-            "Request started",
-            request_id=request_id,
-            method=request.method,
-            path=request.url.path,
-            client_ip=request.client.host if request.client else "unknown"
+            "API request received",
+            method=method,
+            path=path,
+            client_ip=client_ip,
+            user_agent=request.headers.get("user-agent", "unknown"),
         )
-        
-        # 执行请求
+
         try:
             response = await call_next(request)
-duration = time.time() - start_time
+        except Exception as exc:  # pragma: no cover - handled by FastAPI exception handlers
+            duration = time.perf_counter() - start_time
+            api_logger.error(
+                "API request failed",
+                method=method,
+                path=path,
+                client_ip=client_ip,
+                duration_ms=round(duration * 1000, 2),
+                error=str(exc),
+            )
+            if settings.enable_metrics:
+                api_requests_total.labels(method=method, endpoint=path, status="error").inc()
+                api_request_duration.labels(method=method, endpoint=path).observe(duration)
+            raise
 
-        # 记录响应
+        duration = time.perf_counter() - start_time
         api_logger.info(
-            "Request completed",
-            request_id=request_id,
-            method=request.method,
-            path=request.url.path,
+            "API request completed",
+            method=method,
+            path=path,
+            client_ip=client_ip,
             status_code=response.status_code,
-            duration_ms=round(duration * 1000, 2)
+            duration_ms=round(duration * 1000, 2),
         )
-        
-        return response
-        
-    except Exception as e:
-        duration = time.time() - start_time
-        
-        # 记录错误
-        api_logger.error(
-            "Request failed",
-            request_id=request_id,
-            method=request.method,
-            path=request.url.path,
-            error=str(e),
-            duration_ms=round(duration * 1000, 2)
-)
 
-        raise
+        if settings.enable_metrics:
+            api_requests_total.labels(
+                method=method,
+                endpoint=path,
+                status=str(response.status_code),
+            ).inc()
+            api_request_duration.labels(method=method, endpoint=path).observe(duration)
+
+        return response
+
+
+__all__ = ["RequestLoggingMiddleware"]

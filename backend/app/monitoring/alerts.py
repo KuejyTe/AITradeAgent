@@ -1,141 +1,162 @@
-"""
-告警系统
-"""
-from typing import Callable, List, Dict
+"""Alerting utilities for proactive monitoring."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
+from app.core.logging import app_logger
+
 
 class AlertSeverity(str, Enum):
-"""告警严重程度"""
-LOW = "low"
-MEDIUM = "medium"
-HIGH = "high"
-CRITICAL = "critical"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
 
+
+ConditionFunc = Callable[[Optional[Dict[str, Any]]], bool]
+AlertChannel = Callable[["Alert"], None]
+
+
+@dataclass
 class Alert:
-"""告警对象"""
+    name: str
+    message: str
+    severity: AlertSeverity
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.utcnow)
 
-def __init__(
-    self,
-    name: str,
-    message: str,
-    severity: AlertSeverity,
-    metadata: Dict = None
-):
-    self.name = name
-    self.message = message
-    self.severity = severity
-    self.metadata = metadata or {}
-    self.timestamp = datetime.utcnow()
+
+@dataclass
 class AlertRule:
-"""告警规则"""
-
-def __init__(
-    self,
-    name: str,
-    condition: Callable,
-    severity: AlertSeverity,
+    name: str
+    condition: ConditionFunc
+    severity: AlertSeverity
     description: str = ""
-):
-    self.name = name
-    self.condition = condition
-    self.severity = severity
-    self.description = description
+
+
 class AlertManager:
-"""告警管理器"""
+    """Manage alert rules and dispatch notifications when triggered."""
 
-def __init__(self):
-    self.rules: List[AlertRule] = []
-    self.alert_channels: List[Callable] = []
-    self.alert_history: List[Alert] = []
+    def __init__(self) -> None:
+        self.alert_rules: List[AlertRule] = []
+        self.alert_channels: List[AlertChannel] = []
+        self.alert_history: List[Alert] = []
 
-def add_rule(self, rule: AlertRule):
-    """添加告警规则"""
-    self.rules.append(rule)
+    def add_rule(self, rule: AlertRule) -> None:
+        if rule not in self.alert_rules:
+            self.alert_rules.append(rule)
 
-def add_channel(self, channel: Callable):
-    """添加告警通道"""
-    self.alert_channels.append(channel)
+    def add_channel(self, channel: AlertChannel) -> None:
+        if channel not in self.alert_channels:
+            self.alert_channels.append(channel)
 
-def check_rules(self, data: Dict = None):
-    """检查所有告警规则"""
-    alerts = []
-    
-    for rule in self.rules:
-        try:
-            if rule.condition(data):
-                alert = Alert(
-                    name=rule.name,
-                    message=rule.description,
-                    severity=rule.severity,
-                    metadata=data
+    def check_alerts(self, data: Optional[Dict[str, Any]] = None) -> List[Alert]:
+        triggered: List[Alert] = []
+        for rule in self.alert_rules:
+            try:
+                if rule.condition(data):
+                    alert = Alert(
+                        name=rule.name,
+                        message=rule.description or rule.name,
+                        severity=rule.severity,
+                        metadata=data or {},
+                    )
+                    triggered.append(alert)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                app_logger.warning(
+                    "Failed to evaluate alert rule",
+                    rule=rule.name,
+                    error=str(exc),
                 )
-                alerts.append(alert)
-        except Exception as e:
-            print(f"Error checking rule {rule.name}: {e}")
-    
-    # 发送告警
-    for alert in alerts:
-        self.send_alert(alert)
-    
-    return alerts
 
-def send_alert(self, alert: Alert):
-    """发送告警到所有通道"""
-    self.alert_history.append(alert)
-    
-    for channel in self.alert_channels:
-        try:
-            channel(alert)
-        except Exception as e:
-            print(f"Error sending alert to channel: {e}")
+        for alert in triggered:
+            self.send_alert(alert)
 
-def get_history(self, limit: int = 100) -> List[Alert]:
-    """获取告警历史"""
-    return self.alert_history[-limit:]
-告警通道示例
-def email_alert_channel(alert: Alert):
-"""邮件告警通道"""
-print(f"[EMAIL] {alert.severity}: {alert.name} - {alert.message}")
+        return triggered
 
-def telegram_alert_channel(alert: Alert):
-"""Telegram告警通道"""
-print(f"[TELEGRAM] {alert.severity}: {alert.name} - {alert.message}")
+    def send_alert(self, alert: Alert) -> None:
+        self.alert_history.append(alert)
+        for channel in self.alert_channels or (email_alert_channel, telegram_alert_channel):
+            try:
+                channel(alert)
+            except Exception as exc:  # pragma: no cover - defensive logging
+                app_logger.error(
+                    "Alert channel delivery failed",
+                    channel=getattr(channel, "__name__", str(channel)),
+                    error=str(exc),
+                )
 
-预定义告警规则
-def high_error_rate_condition(data: Dict) -> bool:
-"""高错误率条件"""
-error_rate = data.get("error_rate", 0)
-return error_rate > 0.05
+    def get_history(self, limit: int = 100) -> List[Alert]:
+        return self.alert_history[-limit:]
 
-def low_balance_condition(data: Dict) -> bool:
-"""余额不足条件"""
-balance = data.get("balance", 0)
-return balance < 100
 
-def large_loss_condition(data: Dict) -> bool:
-"""大额亏损条件"""
-pnl = data.get("pnl", 0)
-return pnl < -1000
+# ---------------------------------------------------------------------------
+# Default alert condition helpers
+# ---------------------------------------------------------------------------
 
-创建默认告警规则
-HIGH_ERROR_RATE = AlertRule(
-name="high_error_rate",
-condition=high_error_rate_condition,
-severity=AlertSeverity.HIGH,
-description="API错误率超过5%"
-)
+def _high_error_rate(data: Optional[Dict[str, Any]]) -> bool:
+    return float((data or {}).get("error_rate", 0.0)) > 0.05
 
-LOW_BALANCE = AlertRule(
-name="low_balance",
-condition=low_balance_condition,
-severity=AlertSeverity.MEDIUM,
-description="账户余额低于100 USDT"
-)
 
-LARGE_LOSS = AlertRule(
-name="large_loss",
-condition=large_loss_condition,
-severity=AlertSeverity.CRITICAL,
-description="单笔交易亏损超过1000 USDT"
-)
+def _low_balance(data: Optional[Dict[str, Any]]) -> bool:
+    return float((data or {}).get("balance", 0.0)) < 100
+
+
+def _large_loss(data: Optional[Dict[str, Any]]) -> bool:
+    return abs(float((data or {}).get("pnl", 0.0))) > 1000
+
+
+class AlertRules:
+    HIGH_ERROR_RATE = AlertRule(
+        name="高错误率",
+        condition=_high_error_rate,
+        severity=AlertSeverity.HIGH,
+        description="API 错误率超过 5%",
+    )
+
+    LOW_BALANCE = AlertRule(
+        name="余额不足",
+        condition=_low_balance,
+        severity=AlertSeverity.MEDIUM,
+        description="账户余额低于 100",
+    )
+
+    LARGE_LOSS = AlertRule(
+        name="单笔大额亏损",
+        condition=_large_loss,
+        severity=AlertSeverity.CRITICAL,
+        description="单笔交易损失超过 1000",
+    )
+
+
+def email_alert_channel(alert: Alert) -> None:
+    app_logger.warning(
+        "Email alert dispatched",
+        name=alert.name,
+        severity=alert.severity.value,
+        message=alert.message,
+    )
+
+
+def telegram_alert_channel(alert: Alert) -> None:
+    app_logger.warning(
+        "Telegram alert dispatched",
+        name=alert.name,
+        severity=alert.severity.value,
+        message=alert.message,
+    )
+
+
+__all__ = [
+    "AlertSeverity",
+    "Alert",
+    "AlertRule",
+    "AlertManager",
+    "AlertRules",
+    "email_alert_channel",
+    "telegram_alert_channel",
+]

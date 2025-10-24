@@ -5,6 +5,7 @@ import AccountDashboard from './pages/AccountDashboard'
 import OrderHistory from './pages/OrderHistory'
 import TradeHistory from './pages/TradeHistory'
 import Performance from './pages/Performance'
+import Monitoring from './pages/Monitoring'
 import { useAccount } from './context/AccountContext'
 import { apiService } from './services/api'
 
@@ -52,6 +53,9 @@ const App = () => {
           <NavLink to="/performance" className={({ isActive }) => (isActive ? 'active' : undefined)}>
             绩效分析
           </NavLink>
+          <NavLink to="/monitoring" className={({ isActive }) => (isActive ? 'active' : undefined)}>
+            系统监控
+          </NavLink>
         </nav>
         <div className="sidebar-status">
           <div className={`status-dot status-${apiStatus}`} />
@@ -84,6 +88,7 @@ const App = () => {
             <Route path="/orders" element={<OrderHistory />} />
             <Route path="/trades" element={<TradeHistory />} />
             <Route path="/performance" element={<Performance />} />
+            <Route path="/monitoring" element={<Monitoring />} />
             <Route path="*" element={<Navigate to="/account" replace />} />
           </Routes>
         </main>

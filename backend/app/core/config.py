@@ -62,6 +62,25 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = Field("INFO", env="LOG_LEVEL")
     LOG_FILE: str = Field("logs/app.log", env="LOG_FILE")
+    LOG_FILE_PATH: Optional[str] = Field(None, env="LOG_FILE_PATH")
+    LOG_MAX_SIZE: int = Field(10 * 1024 * 1024, env="LOG_MAX_SIZE")
+    LOG_BACKUP_COUNT: int = Field(10, env="LOG_BACKUP_COUNT")
+    LOG_ROTATION_WHEN: str = Field("midnight", env="LOG_ROTATION_WHEN")
+    LOG_ROTATION_INTERVAL: int = Field(1, env="LOG_ROTATION_INTERVAL")
+
+    # Monitoring
+    ENABLE_METRICS: bool = Field(True, env="ENABLE_METRICS")
+    METRICS_PORT: int = Field(9090, env="METRICS_PORT")
+
+    # Sentry
+    SENTRY_DSN: Optional[str] = Field(None, env="SENTRY_DSN")
+    SENTRY_ENVIRONMENT: Optional[str] = Field(None, env="SENTRY_ENVIRONMENT")
+    SENTRY_TRACES_SAMPLE_RATE: float = Field(1.0, env="SENTRY_TRACES_SAMPLE_RATE")
+
+    # Alerting
+    ALERT_EMAIL: Optional[str] = Field(None, env="ALERT_EMAIL")
+    TELEGRAM_BOT_TOKEN: Optional[str] = Field(None, env="TELEGRAM_BOT_TOKEN")
+    TELEGRAM_CHAT_ID: Optional[str] = Field(None, env="TELEGRAM_CHAT_ID")
 
     # Trading defaults
     DEFAULT_TRADE_AMOUNT: float = Field(100, env="DEFAULT_TRADE_AMOUNT")
@@ -105,6 +124,19 @@ class Settings(BaseSettings):
         "encryption_key": "ENCRYPTION_KEY",
         "log_level": "LOG_LEVEL",
         "log_file": "LOG_FILE",
+        "log_file_path": "LOG_FILE_PATH",
+        "log_max_size": "LOG_MAX_SIZE",
+        "log_backup_count": "LOG_BACKUP_COUNT",
+        "log_rotation_when": "LOG_ROTATION_WHEN",
+        "log_rotation_interval": "LOG_ROTATION_INTERVAL",
+        "enable_metrics": "ENABLE_METRICS",
+        "metrics_port": "METRICS_PORT",
+        "sentry_dsn": "SENTRY_DSN",
+        "sentry_environment": "SENTRY_ENVIRONMENT",
+        "sentry_traces_sample_rate": "SENTRY_TRACES_SAMPLE_RATE",
+        "alert_email": "ALERT_EMAIL",
+        "telegram_bot_token": "TELEGRAM_BOT_TOKEN",
+        "telegram_chat_id": "TELEGRAM_CHAT_ID",
         "default_trade_amount": "DEFAULT_TRADE_AMOUNT",
         "max_position_size": "MAX_POSITION_SIZE",
         "risk_percentage": "RISK_PERCENTAGE",
@@ -187,8 +219,9 @@ class Settings(BaseSettings):
         self._ensure_paths()
 
     def _ensure_paths(self) -> None:
+        log_file_path = self.resolve_path(self.log_file)
         for path in (
-            self.resolve_path(self.LOG_FILE).parent,
+            log_file_path.parent,
             self.resolve_path(self.CONFIG_STORAGE_DIR),
             self.resolve_path(self.CONFIG_BACKUP_DIR),
             self.resolve_path(self.API_KEYS_STORE).parent,
@@ -283,7 +316,55 @@ class Settings(BaseSettings):
 
     @property
     def log_file(self) -> str:
-        return self.LOG_FILE
+        return self.LOG_FILE_PATH or self.LOG_FILE
+
+    @property
+    def log_max_size(self) -> int:
+        return self.LOG_MAX_SIZE
+
+    @property
+    def log_backup_count(self) -> int:
+        return self.LOG_BACKUP_COUNT
+
+    @property
+    def log_rotation_when(self) -> str:
+        return self.LOG_ROTATION_WHEN
+
+    @property
+    def log_rotation_interval(self) -> int:
+        return self.LOG_ROTATION_INTERVAL
+
+    @property
+    def enable_metrics(self) -> bool:
+        return self.ENABLE_METRICS
+
+    @property
+    def metrics_port(self) -> int:
+        return self.METRICS_PORT
+
+    @property
+    def sentry_dsn(self) -> Optional[str]:
+        return self.SENTRY_DSN
+
+    @property
+    def sentry_environment(self) -> Optional[str]:
+        return self.SENTRY_ENVIRONMENT or self.ENVIRONMENT
+
+    @property
+    def sentry_traces_sample_rate(self) -> float:
+        return self.SENTRY_TRACES_SAMPLE_RATE
+
+    @property
+    def alert_email(self) -> Optional[str]:
+        return self.ALERT_EMAIL
+
+    @property
+    def telegram_bot_token(self) -> Optional[str]:
+        return self.TELEGRAM_BOT_TOKEN
+
+    @property
+    def telegram_chat_id(self) -> Optional[str]:
+        return self.TELEGRAM_CHAT_ID
 
     @property
     def default_trade_amount(self) -> float:
