@@ -1,4 +1,4 @@
-from pydantic import BaseSettings, Field
+from pydantic_settings import BaseSettings, Field
 from typing import Optional
 
 class Settings(BaseSettings):
@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     risk_percentage: float = Field(0.02, env="RISK_PERCENTAGE")
 
     class Config:
-    env_file = ".env"
+        env_file = ".env"
     case_sensitive = False
     
     全局配置实例
