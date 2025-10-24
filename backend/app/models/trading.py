@@ -1,105 +1,90 @@
-from __future__ import annotations
+"""
+交易相关数据模型
+"""
 
-import enum
-import uuid
+from sqlalchemy import Column, String, Numeric, DateTime, Enum as SQLEnum, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 from datetime import datetime
-from decimal import Decimal
-from typing import List, Optional, TYPE_CHECKING
+import uuid
+import enum
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Numeric, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.sql import func
-
-from app.db.base import Base, GUID, TimestampMixin, UUIDPrimaryKeyMixin
-
-if TYPE_CHECKING:
-    from app.models.strategy import Strategy
-
-
-ZERO = Decimal("0")
+from .base import Base
 
 
 class OrderSide(str, enum.Enum):
+    """订单方向"""
     BUY = "buy"
     SELL = "sell"
 
 
 class OrderType(str, enum.Enum):
+    """订单类型"""
     MARKET = "market"
     LIMIT = "limit"
+    STOP = "stop"
+    STOP_LIMIT = "stop_limit"
 
 
 class OrderStatus(str, enum.Enum):
+    """订单状态"""
     PENDING = "pending"
+    OPEN = "open"
+    PARTIALLY_FILLED = "partially_filled"
     FILLED = "filled"
     CANCELLED = "cancelled"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
 
 
-class TradeSide(str, enum.Enum):
-    BUY = "buy"
-    SELL = "sell"
-
-
-class Order(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+class Order(Base):
+    """订单模型"""
     __tablename__ = "orders"
-    __table_args__ = (
-        UniqueConstraint("order_id", name="uq_orders_order_id"),
-        Index("ix_orders_instrument_created_at", "instrument_id", "created_at"),
-        Index("ix_orders_instrument_id", "instrument_id"),
-    )
 
-    order_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    instrument_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    side: Mapped[OrderSide] = mapped_column(
-        Enum(OrderSide, name="order_side", native_enum=False), nullable=False
-    )
-    order_type: Mapped[OrderType] = mapped_column(
-        Enum(OrderType, name="order_type", native_enum=False), nullable=False
-    )
-    price: Mapped[Decimal] = mapped_column(Numeric(24, 12), nullable=False)
-    size: Mapped[Decimal] = mapped_column(Numeric(24, 12), nullable=False)
-    filled_size: Mapped[Decimal] = mapped_column(
-        Numeric(24, 12), nullable=False, default=ZERO
-    )
-    status: Mapped[OrderStatus] = mapped_column(
-        Enum(OrderStatus, name="order_status", native_enum=False),
-        nullable=False,
-        default=OrderStatus.PENDING,
-    )
-    strategy_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        GUID(), ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    order_id = Column(String(100), unique=True, nullable=False, index=True, comment="交易所订单ID")
+    instrument_id = Column(String(50), nullable=False, index=True, comment="交易对")
+    side = Column(SQLEnum(OrderSide), nullable=False, comment="买卖方向")
+    order_type = Column(SQLEnum(OrderType), nullable=False, comment="订单类型")
+    price = Column(Numeric(20, 8), comment="价格")
+    size = Column(Numeric(20, 8), nullable=False, comment="数量")
+    filled_size = Column(Numeric(20, 8), default=0, comment="已成交数量")
+    status = Column(SQLEnum(OrderStatus), nullable=False, default=OrderStatus.PENDING, comment="订单状态")
+    strategy_id = Column(UUID(as_uuid=True), ForeignKey("strategies.id"), nullable=True, comment="关联策略ID")
+    client_order_id = Column(String(100), comment="客户端订单ID")
+    fee = Column(Numeric(20, 8), default=0, comment="手续费")
+    fee_currency = Column(String(20), comment="手续费币种")
+    error_message = Column(String(500), comment="错误信息")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True, comment="创建时间")
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False, comment="更新时间")
 
-    strategy: Mapped[Optional["Strategy"]] = relationship(
-        "Strategy", back_populates="orders"
-    )
-    trades: Mapped[List["Trade"]] = relationship(
-        "Trade", back_populates="order", cascade="all, delete-orphan"
-    )
+    # 关系
+    trades = relationship("Trade", back_populates="order", cascade="all, delete-orphan")
+    strategy = relationship("Strategy", back_populates="orders")
+
+    def __repr__(self):
+        return f"<Order(id={self.id}, instrument_id={self.instrument_id}, side={self.side}, status={self.status})>"
 
 
-class Trade(UUIDPrimaryKeyMixin, Base):
+class Trade(Base):
+    """成交记录模型"""
     __tablename__ = "trades"
-    __table_args__ = (
-        UniqueConstraint("trade_id", name="uq_trades_trade_id"),
-        Index("ix_trades_order_timestamp", "order_id", "timestamp"),
-        Index("ix_trades_order_id", "order_id"),
-        Index("ix_trades_instrument_id", "instrument_id"),
-    )
 
-    trade_id: Mapped[str] = mapped_column(String(128), nullable=False)
-    order_id: Mapped[uuid.UUID] = mapped_column(
-        GUID(), ForeignKey("orders.id", ondelete="CASCADE"), nullable=False
-    )
-    instrument_id: Mapped[str] = mapped_column(String(100), nullable=False)
-    side: Mapped[TradeSide] = mapped_column(
-        Enum(TradeSide, name="trade_side", native_enum=False), nullable=False
-    )
-    price: Mapped[Decimal] = mapped_column(Numeric(24, 12), nullable=False)
-    size: Mapped[Decimal] = mapped_column(Numeric(24, 12), nullable=False)
-    fee: Mapped[Decimal] = mapped_column(Numeric(24, 12), nullable=False, default=ZERO)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    trade_id = Column(String(100), unique=True, nullable=False, index=True, comment="交易所成交ID")
+    order_id = Column(UUID(as_uuid=True), ForeignKey("orders.id"), nullable=False, comment="关联订单ID")
+    instrument_id = Column(String(50), nullable=False, index=True, comment="交易对")
+    side = Column(SQLEnum(OrderSide), nullable=False, comment="买卖方向")
+    price = Column(Numeric(20, 8), nullable=False, comment="成交价格")
+    size = Column(Numeric(20, 8), nullable=False, comment="成交数量")
+    fee = Column(Numeric(20, 8), default=0, comment="手续费")
+    fee_currency = Column(String(20), comment="手续费币种")
+    role = Column(String(20), comment="maker/taker")
+    timestamp = Column(DateTime, nullable=False, index=True, comment="成交时间")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, comment="记录创建时间")
 
-    order: Mapped["Order"] = relationship("Order", back_populates="trades")
+    # 关系
+    order = relationship("Order", back_populates="trades")
+
+    def __repr__(self):
+        return f"<Trade(id={self.id}, instrument_id={self.instrument_id}, price={self.price}, size={self.size})>"
