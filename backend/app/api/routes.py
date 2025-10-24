@@ -1,11 +1,13 @@
 from fastapi import APIRouter
-from app.api.strategies import router as strategies_router
+from app.api.config import router as config_router
 from app.api.market_data import router as market_data_router
+from app.api.strategies import router as strategies_router
 from app.api.trading import router as trading_router
 
 router = APIRouter()
 
 # Include sub-routers
+router.include_router(config_router)
 router.include_router(strategies_router)
 router.include_router(market_data_router)
 router.include_router(trading_router)

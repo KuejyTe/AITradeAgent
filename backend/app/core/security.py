@@ -1,249 +1,161 @@
-"""
-安全相关功能：加密存储、API密钥管理
-"""
+from __future__ import annotations
 
-from cryptography.fernet import Fernet
-from typing import Dict, Optional
-import base64
-import os
+import json
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from cryptography.fernet import Fernet, InvalidToken
+
+from app.core.config import settings
 
 
 class SecureStorage:
-    """加密存储服务"""
-    
-    def __init__(self, encryption_key: Optional[str] = None):
-        """
-        初始化加密存储
-        
-        Args:
-            encryption_key: 加密密钥，如果为None则从环境变量读取
-        """
-        if encryption_key is None:
-            encryption_key = os.getenv("ENCRYPTION_KEY")
-            if not encryption_key:
-                # 如果环境变量也没有，生成一个新的
-                encryption_key = self.generate_key()
-                print(f"Generated new encryption key: {encryption_key}")
-                print("Please save this key to your .env file as ENCRYPTION_KEY")
-        
-        self.cipher = Fernet(encryption_key.encode())
-    
+    """Encryption helper built on top of Fernet symmetric encryption."""
+
+    def __init__(self, encryption_key: Optional[str] = None) -> None:
+        key = encryption_key or settings.encryption_key
+        if not key:
+            raise ValueError(
+                "Encryption key is required. Set ENCRYPTION_KEY in your environment or configuration."
+            )
+
+        if isinstance(key, str):
+            key_bytes = key.encode()
+        else:
+            key_bytes = key
+
+        try:
+            self._cipher = Fernet(key_bytes)
+        except Exception as exc:  # pragma: no cover - defensive
+            raise ValueError("Invalid encryption key supplied to SecureStorage") from exc
+
     def encrypt(self, data: str) -> str:
-        """
-        加密数据
-        
-        Args:
-            data: 要加密的字符串
-            
-        Returns:
-            加密后的字符串
-        """
-        return self.cipher.encrypt(data.encode()).decode()
-    
+        """Encrypt a string value."""
+        if data is None:
+            raise ValueError("Cannot encrypt None values")
+        if data == "":
+            return ""
+        token = self._cipher.encrypt(data.encode("utf-8"))
+        return token.decode("utf-8")
+
     def decrypt(self, encrypted_data: str) -> str:
-        """
-        解密数据
-        
-        Args:
-            encrypted_data: 加密的字符串
-            
-        Returns:
-            解密后的原始字符串
-        """
-        return self.cipher.decrypt(encrypted_data.encode()).decode()
-    
+        """Decrypt a token produced by :meth:`encrypt`."""
+        if encrypted_data is None:
+            raise ValueError("Cannot decrypt None values")
+        if encrypted_data == "":
+            return ""
+        try:
+            value = self._cipher.decrypt(encrypted_data.encode("utf-8"))
+        except InvalidToken as exc:
+            raise ValueError("Encrypted payload is invalid or has been tampered with") from exc
+        return value.decode("utf-8")
+
     @staticmethod
     def generate_key() -> str:
-        """
-        生成新的加密密钥
-        
-        Returns:
-            Base64编码的密钥字符串
-        """
-        return Fernet.generate_key().decode()
+        """Generate a new Fernet compatible base64 key."""
+        return Fernet.generate_key().decode("utf-8")
 
 
 class APIKeyManager:
-    """API密钥管理器"""
-    
-    def __init__(self, storage: SecureStorage):
-        """
-        初始化API密钥管理器
-Args:
-storage: SecureStorage实例
-"""
-self.storage = storage
-self._cached_keys: Optional[Dict[str, str]] = None
+    """Manage encrypted storage of exchange API credentials."""
 
-def save_api_keys(
-    self,
-    api_key: str,
-    secret_key: str,
-    passphrase: str
-) -> Dict[str, str]:
-    """
-    保存加密的API密钥
-    
-    Args:
-        api_key: OKX API Key
-        secret_key: OKX Secret Key
-        passphrase: OKX Passphrase
-        
-    Returns:
-        加密后的密钥字典
-    """
-    encrypted_keys = {
-        "api_key": self.storage.encrypt(api_key),
-        "secret_key": self.storage.encrypt(secret_key),
-        "passphrase": self.storage.encrypt(passphrase)
-    }
-    
-    # 这里应该保存到数据库或配置文件
-    # 为了演示，我们只返回加密结果
-    self._cached_keys = encrypted_keys
-    
-    return encrypted_keys
+    def __init__(
+        self,
+        storage: SecureStorage,
+        store_path: Optional[Path] = None,
+        audit_logger: Optional["ConfigAuditLogger"] = None,
+    ) -> None:
+        self.storage = storage
+        self.store_path = store_path or settings.api_keys_store_path
+        self.store_path.parent.mkdir(parents=True, exist_ok=True)
+        self._cached_keys: Optional[Dict[str, str]] = None
+        self._metadata: Dict[str, Any] = {}
+        self.audit_logger = audit_logger
 
-def get_api_keys(self) -> Dict[str, str]:
-    """
-    获取并解密API密钥
-    
-    Returns:
-        解密后的密钥字典
-    """
-    if self._cached_keys is None:
-        # 这里应该从数据库或配置文件读取
-        # 为了演示，返回空字典
-        return {}
-    
-    return {
-        "api_key": self.storage.decrypt(self._cached_keys["api_key"]),
-        "secret_key": self.storage.decrypt(self._cached_keys["secret_key"]),
-        "passphrase": self.storage.decrypt(self._cached_keys["passphrase"])
-    }
+    def _read_store(self) -> Optional[Dict[str, Any]]:
+        if not self.store_path.exists():
+            return None
+        with self.store_path.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
 
-def validate_api_keys(self, api_key: str, secret_key: str, passphrase: str) -> bool:
-    """
-    验证API密钥格式
-    
-    Args:
-        api_key: API Key
-        secret_key: Secret Key
-        passphrase: Passphrase
-        
-    Returns:
-        是否有效
-    """
-    # 基础格式验证
-    if not all([api_key, secret_key, passphrase]):
-        return False
-    
-    # OKX API Key通常是32位字符
-    if len(api_key) < 20:
-        return False
-        
-    return True
-class StrategyConfigManager:
-"""策略配置管理器"""
+    def _write_store(self, payload: Dict[str, Any]) -> None:
+        with self.store_path.open("w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, ensure_ascii=False)
 
-def __init__(self, config_dir: str = "configs/strategies"):
-    """
-    初始化策略配置管理器
-    
-    Args:
-        config_dir: 配置文件目录
-    """
-    self.config_dir = config_dir
-    os.makedirs(config_dir, exist_ok=True)
+    def save_api_keys(
+        self,
+        api_key: str,
+        secret_key: str,
+        passphrase: str,
+        actor: str = "system",
+    ) -> Dict[str, Any]:
+        """Encrypt and persist API credentials."""
+        encrypted = {
+            "api_key": self.storage.encrypt(api_key),
+            "secret_key": self.storage.encrypt(secret_key),
+            "passphrase": self.storage.encrypt(passphrase),
+        }
 
-def load_strategy_config(self, strategy_id: str) -> Dict:
-    """
-    加载策略配置
-    
-    Args:
-        strategy_id: 策略ID
-        
-    Returns:
-        策略配置字典
-    """
-    import json
-    config_path = os.path.join(self.config_dir, f"{strategy_id}.json")
-    
-    if not os.path.exists(config_path):
-        return self.get_default_config(strategy_id)
-    
-    with open(config_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
+        metadata = {"updated_at": datetime.utcnow().isoformat()}
+        self._write_store({**encrypted, **metadata})
 
-def save_strategy_config(self, strategy_id: str, config: Dict) -> bool:
-    """
-    保存策略配置
-    
-    Args:
-        strategy_id: 策略ID
-        config: 配置字典
-        
-    Returns:
-        是否保存成功
-    """
-    import json
-    
-    if not self.validate_config(config):
-        return False
-    
-    config_path = os.path.join(self.config_dir, f"{strategy_id}.json")
-    
-    with open(config_path, 'w', encoding='utf-8') as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
-    
-    return True
+        # cache decrypted copy for quick retrieval during the request lifecycle
+        self._cached_keys = {
+            "api_key": api_key,
+            "secret_key": secret_key,
+            "passphrase": passphrase,
+        }
+        self._metadata = metadata
 
-def validate_config(self, config: Dict) -> bool:
-    """
-    验证配置有效性
-    
-    Args:
-        config: 配置字典
-        
-    Returns:
-        是否有效
-    """
-    required_fields = ["strategy_type", "parameters"]
-    return all(field in config for field in required_fields)
+        if self.audit_logger:
+            self.audit_logger.log(
+                action="save_api_keys",
+                details={"updated_at": metadata["updated_at"]},
+                actor=actor,
+            )
 
-def get_default_config(self, strategy_type: str) -> Dict:
-    """
-    获取默认配置
-    
-    Args:
-        strategy_type: 策略类型
-        
-    Returns:
-        默认配置字典
-    """
-    defaults = {
-        "sma_crossover": {
-            "strategy_type": "sma_crossover",
-            "version": "1.0",
-            "parameters": {
-                "fast_period": 10,
-                "slow_period": 30,
-                "instrument_id": "BTC-USDT",
-                "timeframe": "1H"
-            },
-            "risk_management": {
-                "max_
-position_size": 1.0,
-"stop_loss_pct": 0.05,
-"take_profit_pct": 0.10,
-"max_daily_loss": 0.10
-},
-"execution": {
-"order_type": "limit",
-"slippage_tolerance": 0.001
-}
-}
-}
+        return metadata
 
-    return defaults.get(strategy_type,
-{})
+    def get_api_keys(self) -> Dict[str, Any]:
+        """Return decrypted API credentials for internal use."""
+        if self._cached_keys is None:
+            stored = self._read_store()
+            if not stored:
+                return {}
+            self._cached_keys = {
+                "api_key": self.storage.decrypt(stored["api_key"]),
+                "secret_key": self.storage.decrypt(stored["secret_key"]),
+                "passphrase": self.storage.decrypt(stored["passphrase"]),
+            }
+            self._metadata = {"updated_at": stored.get("updated_at")}
+
+        return {**self._cached_keys, **self._metadata}
+
+    def get_status(self) -> Dict[str, Any]:
+        """Return a redacted summary for UI consumption."""
+        stored = self._read_store()
+        if not stored:
+            return {"configured": False}
+
+        updated_at = stored.get("updated_at")
+        preview = None
+        try:
+            preview = self.storage.decrypt(stored["api_key"])
+        except Exception:  # pragma: no cover - defensive
+            preview = ""
+
+        masked = f"{preview[:4]}***{preview[-2:]}" if preview else None
+        return {
+            "configured": True,
+            "api_key_preview": masked,
+            "updated_at": updated_at,
+        }
+
+    def clear_cache(self) -> None:
+        self._cached_keys = None
+        self._metadata = {}
+
+
+# Local import to avoid circular dependency in type checking
+from app.core.config_service import ConfigAuditLogger  # noqa: E402  # isort:skip

@@ -1,7 +1,6 @@
 {
   "strategy_type": "sma_crossover",
   "version": "1.0",
-  "description": "简单移动平均线交叉策略",
   "parameters": {
     "fast_period": 10,
     "slow_period": 30,
@@ -12,13 +11,10 @@
     "max_position_size": 1.0,
     "stop_loss_pct": 0.05,
     "take_profit_pct": 0.10,
-    "max_daily_loss": 0.10,
-    "max_drawdown": 0.20
+    "max_daily_loss": 0.10
   },
   "execution": {
     "order_type": "limit",
-    "slippage_tolerance": 0.001,"timeout_seconds": 30
-},
-"enabled": true,
-"created_at": "2025-10-23T00:00:00Z","updated_at": "2025-10-23T00:00:00Z"
+    "slippage_tolerance": 0.001
+  }
 }
