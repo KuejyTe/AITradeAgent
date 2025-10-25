@@ -1,23 +1,41 @@
-```python
-"""
-数据模型包
-包含所有数据库模型定义
-"""
+from __future__ import annotations
 
-from .base import Base
-from .market import Candle, Ticker
-from .trading import Order, Trade
-from .account import AccountBalance, Position
-from .strategy import Strategy, StrategySignal
+from app.db.base import Base
+
+from .account import AccountBalance
+from .market_data import Candle, DataQualityLog, OrderBook, Ticker
+from .trading import (
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    Position,
+    PositionSide,
+    Trade,
+)
+from .strategy import Strategy, StrategySignal, StrategySignalType, StrategyStatus
+
+# Compatibility exports for legacy modules
+from .market import Candle as MarketCandle, Ticker as MarketTicker
 
 __all__ = [
     "Base",
+    "AccountBalance",
     "Candle",
     "Ticker",
     "Order",
-    "Trade",
-    "AccountBalance",
+    "OrderSide",
+    "OrderStatus",
+    "OrderType",
     "Position",
+    "PositionSide",
+    "Trade",
+    "OrderBook",
+    "DataQualityLog",
     "Strategy",
     "StrategySignal",
+    "StrategySignalType",
+    "StrategyStatus",
+    "MarketCandle",
+    "MarketTicker",
 ]

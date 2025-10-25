@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.security import APIKeyManager, SecureStorage
 from app.services.okx.client import OKXClient
 from app.services.okx.trade import OKXTrade
 from app.services.okx.account import OKXAccount
@@ -27,12 +28,40 @@ from app.models.trading import OrderStatus, OrderSide
 router = APIRouter(prefix="/trading", tags=["trading"])
 
 
+def _resolve_okx_credentials() -> tuple[Optional[str], Optional[str], Optional[str]]:
+    if all(
+        (
+            settings.OKX_API_KEY,
+            settings.OKX_SECRET_KEY,
+            settings.OKX_PASSPHRASE,
+        )
+    ):
+        return settings.OKX_API_KEY, settings.OKX_SECRET_KEY, settings.OKX_PASSPHRASE
+
+    try:
+        storage = SecureStorage()
+        manager = APIKeyManager(storage)
+        stored = manager.get_api_keys()
+    except ValueError:
+        stored = {}
+
+    if stored:
+        return (
+            stored.get("api_key"),
+            stored.get("secret_key"),
+            stored.get("passphrase"),
+        )
+
+    return None, None, None
+
+
 def get_okx_client():
     """Get OKX client instance"""
+    api_key, secret_key, passphrase = _resolve_okx_credentials()
     return OKXClient(
-        api_key=settings.OKX_API_KEY,
-        secret_key=settings.OKX_SECRET_KEY,
-        passphrase=settings.OKX_PASSPHRASE,
+        api_key=api_key,
+        secret_key=secret_key,
+        passphrase=passphrase,
     )
 
 
