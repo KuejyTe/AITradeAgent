@@ -1,6 +1,6 @@
 import json
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
@@ -40,9 +40,7 @@ class OrderManager:
             reduce_only=order_params.reduce_only,
             strategy_id=order_params.strategy_id,
             signal_id=order_params.signal_id,
-            metadata=json.dumps(order_params.metadata) if order_params.metadata else None,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            metadata=order_params.metadata if order_params.metadata else None,
         )
         
         self.db_session.add(order)
@@ -84,28 +82,28 @@ class OrderManager:
             raise ValueError(f"Order {order_id} not found")
         
         order.status = status
-        order.updated_at = datetime.utcnow()
-        
+        order.updated_at = datetime.now(timezone.utc)
+
         if filled_size is not None:
             order.filled_size = filled_size
-        
+
         if average_price is not None:
             order.average_price = average_price
-        
+
         if exchange_order_id is not None:
             order.exchange_order_id = exchange_order_id
-        
+
         if error_code is not None:
             order.error_code = error_code
-        
+
         if error_message is not None:
             order.error_message = error_message
-        
+
         if status == OrderStatus.FILLED:
-            order.filled_at = datetime.utcnow()
+            order.filled_at = datetime.now(timezone.utc)
         elif status == OrderStatus.CANCELLED:
-            order.cancelled_at = datetime.utcnow()
-        
+            order.cancelled_at = datetime.now(timezone.utc)
+
         self.db_session.commit()
         self.db_session.refresh(order)
         
@@ -285,10 +283,15 @@ class OrderManager:
         """
         metadata = None
         if order.metadata:
-            try:
-                metadata = json.loads(order.metadata)
-            except:
-                pass
+            if isinstance(order.metadata, dict):
+                metadata = order.metadata
+            elif isinstance(order.metadata, str):
+                try:
+                    metadata = json.loads(order.metadata)
+                except Exception:
+                    metadata = order.metadata
+            else:
+                metadata = order.metadata
         
         return OrderResponse(
             id=order.id,

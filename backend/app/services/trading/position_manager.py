@@ -1,6 +1,6 @@
 import json
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 
@@ -75,10 +75,11 @@ class PositionManager:
             unrealized_pnl=Decimal("0"),
             realized_pnl=Decimal("0"),
             margin_mode=trade.trade_mode,
+            trade_mode=trade.trade_mode,
             strategy_id=trade.strategy_id,
             metadata=trade.metadata,
-            opened_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            opened_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
         
         self.db_session.add(position)
@@ -124,7 +125,7 @@ class PositionManager:
                 else:
                     # Closing position
                     position.size = Decimal("0")
-                    position.closed_at = datetime.utcnow()
+                    position.closed_at = datetime.now(timezone.utc)
                     # Remove from cache
                     if position.instrument_id in self.positions:
                         del self.positions[position.instrument_id]
@@ -140,7 +141,7 @@ class PositionManager:
                 position.size -= trade.size
         
         position.current_price = trade.price
-        position.updated_at = datetime.utcnow()
+        position.updated_at = datetime.now(timezone.utc)
         
         self.db_session.commit()
         self.db_session.refresh(position)
@@ -195,7 +196,7 @@ class PositionManager:
         
         position.current_price = current_price
         position.unrealized_pnl = self.calculate_pnl(position, current_price)
-        position.updated_at = datetime.utcnow()
+        position.updated_at = datetime.now(timezone.utc)
         
         self.db_session.commit()
         self.db_session.refresh(position)
@@ -253,13 +254,13 @@ class PositionManager:
                         position.size = abs(exchange_size)
                         position.current_price = current_price
                         position.unrealized_pnl = unrealized_pnl
-                        position.updated_at = datetime.utcnow()
+                        position.updated_at = datetime.now(timezone.utc)
                         
                         self.db_session.commit()
                     else:
                         # Position closed on exchange
                         if not position.closed_at:
-                            position.closed_at = datetime.utcnow()
+                            position.closed_at = datetime.now(timezone.utc)
                             position.size = Decimal("0")
                             self.db_session.commit()
                             
@@ -281,10 +282,15 @@ class PositionManager:
         """
         metadata = None
         if position.metadata:
-            try:
-                metadata = json.loads(position.metadata)
-            except:
-                pass
+            if isinstance(position.metadata, dict):
+                metadata = position.metadata
+            elif isinstance(position.metadata, str):
+                try:
+                    metadata = json.loads(position.metadata)
+                except Exception:
+                    metadata = position.metadata
+            else:
+                metadata = position.metadata
         
         return PositionResponse(
             id=position.id,

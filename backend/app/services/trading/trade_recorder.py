@@ -1,11 +1,11 @@
 import json
 from typing import List, Optional, Dict
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func
 
-from app.models.trading import Trade, Order, Position, OrderSide
+from app.models.trading import Trade, Position, OrderSide
 from app.services.trading.schemas import TradeResponse, PerformanceMetrics
 
 
@@ -60,9 +60,8 @@ class TradeRecorder:
             trade_mode=kwargs.get('trade_mode'),
             position_side=kwargs.get('position_side'),
             strategy_id=kwargs.get('strategy_id'),
-            metadata=json.dumps(kwargs.get('metadata')) if kwargs.get('metadata') else None,
-            executed_at=executed_at or datetime.utcnow(),
-            created_at=datetime.utcnow(),
+            metadata=kwargs.get('metadata') if kwargs.get('metadata') else None,
+            executed_at=executed_at or datetime.now(timezone.utc),
         )
         
         self.db_session.add(trade)
@@ -345,10 +344,15 @@ class TradeRecorder:
         """
         metadata = None
         if trade.metadata:
-            try:
-                metadata = json.loads(trade.metadata)
-            except:
-                pass
+            if isinstance(trade.metadata, dict):
+                metadata = trade.metadata
+            elif isinstance(trade.metadata, str):
+                try:
+                    metadata = json.loads(trade.metadata)
+                except Exception:
+                    metadata = trade.metadata
+            else:
+                metadata = trade.metadata
         
         return TradeResponse(
             id=trade.id,

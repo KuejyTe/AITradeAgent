@@ -30,7 +30,7 @@ class DataCache:
     async def connect(self):
         """连接到Redis"""
         try:
-            self.redis_client = await redis.from_url(
+            self.redis_client = redis.from_url(
                 self.redis_url,
                 encoding="utf-8",
                 decode_responses=True
